@@ -4,7 +4,19 @@
   "metadata": {
     "environment": "production",
     "network_exposure": "public",
-    "business_criticality": "high"
+    "business_criticality": "high",
+    "data_classification": "unknown"
+  },
+  "network_context": {
+    "public_ip": "",
+    "listening_ports": [],
+    "is_internet_facing": false
+  },
+  "security_context": {
+    "attached_iam_role": "",
+    "running_as_root": [],
+    "imds_v2_enforced": false,
+    "selinux_enforced": false
   },
   "os_info": {
     "vendor": "unknown",
