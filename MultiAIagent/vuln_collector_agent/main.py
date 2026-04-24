@@ -14,8 +14,8 @@ from tools.payload_builder import (
     build_risk_assessment_payloads,
 )
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
 AGENT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = AGENT_ROOT.parent.parent
 FOCUSED_CVE_OUTPUT_PATH = "data/focused_selected_raw_cves.json"
 ASSET_PAYLOAD_OUTPUT_PATH = "data/asset_matching_payloads.json"
 RISK_PAYLOAD_OUTPUT_PATH = "data/risk_assessment_payloads.json"
@@ -40,7 +40,7 @@ def parse_args():
     parser.add_argument(
         "--output",
         default=FOCUSED_CVE_OUTPUT_PATH,
-        help=f"Output JSON path under vuln_collector_agent. Defaults to {FOCUSED_CVE_OUTPUT_PATH}.",
+        help=f"Output JSON path under MultiAIagent/vuln_collector_agent. Defaults to {FOCUSED_CVE_OUTPUT_PATH}.",
     )
     return parser.parse_args()
 
