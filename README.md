@@ -82,6 +82,7 @@ flowchart TD
 
 주요 내용:
 
+- field descriptions
 - CVSS 정보
 - severity bucket
 - security domain
@@ -101,16 +102,21 @@ flowchart TD
 
 주요 내용:
 
+- field descriptions
 - 영향받는 컴포넌트
 - 영향 버전 범위
 - 수정 버전
 - patch type
 - security domain
 - operational impacts
+- dependency touchpoints
+- code connectivity risks
+- rollout considerations
+- validation focus
 - mitigation summaries
 - notes
 
-이 파일은 "운영팀이 실제로 뭘 해야 하는가?"를 보기 위한 결과물에 가장 가깝습니다.
+이 파일은 "이걸 운영에서 함부로 패치하면 어디가 멈출 수 있는가?"를 보기 위한 결과물에 가장 가깝습니다.
 
 중요 필드:
 
@@ -118,10 +124,18 @@ flowchart TD
   - `service_upgrade`: 서비스/서버 자체 업그레이드
   - `library_upgrade`: 애플리케이션 내부 라이브러리 업그레이드
 - `operational_impacts`
-  - 크래시, 메모리 손상, 코드 실행, 데이터 노출, 자원 고갈 같은 운영상 영향
+  - 패치/업그레이드 과정에서 서비스 중단을 만들 수 있는 운영 변수
+  - 예: 재시작/리로드, 런타임 호환성, transitive dependency 충돌, 중복 패키징
+- `dependency_touchpoints`
+  - 패치 전후 확인해야 할 의존성 접점
+- `code_connectivity_risks`
+  - 주변 코드, 프레임워크, 라우팅, classpath 같은 연결성 때문에 장애로 번질 수 있는 지점
+- `rollout_considerations`
+  - staged rollout, canary, rollback 등 배포 시 고려 사항
+- `validation_focus`
+  - 배포 전후 우선 검증할 항목
 - `mitigation_summaries`
-  - 첫 번째 항목은 보통 가장 직접적인 대응책입니다. 예: 안전 버전으로 업그레이드
-  - 그 뒤 항목들은 주로 CWE 기반의 일반 완화 가이드이므로, 제품 특화 대응보다 더 넓은 보안 원칙이 섞일 수 있습니다
+  - 운영 배포 기준의 짧은 대응 요약입니다. 예: 안전 버전 업그레이드, staged rollout, artifact 검증
 
 ## 디렉터리 구조
 

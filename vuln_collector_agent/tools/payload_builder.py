@@ -6,6 +6,44 @@ from tools.tooling import tool
 
 _BASE_DIR = Path(__file__).parent.parent
 
+_RISK_ASSESSMENT_FIELD_DESCRIPTIONS = {
+    "agent": "Payload owner. risk_assessment is responsible for security severity and exploitability judgment.",
+    "source_dataset": "Input dataset used to generate this payload.",
+    "record_count": "Number of CVE records in records.",
+    "records": "List of CVE risk assessment records.",
+    "cve_id": "CVE identifier.",
+    "title": "Short vulnerability title.",
+    "description": "Source vulnerability description.",
+    "cvss": "CVSS score, vector, provider, and parsed vector details.",
+    "severity": "Severity bucket derived from CVSS score.",
+    "security_domain": "Normalized vulnerability category such as remote-code-execution, memory-corruption, or denial-of-service.",
+    "weaknesses": "CWE identifiers associated with the CVE.",
+    "cwe_names": "Human-readable CWE names.",
+    "risk_signals": "Exploitability signals extracted from CVSS, such as network exposure and privilege requirements.",
+    "common_consequences": "CWE-derived attacker/security outcomes. This is not patch rollout risk.",
+}
+
+_OPERATIONAL_IMPACT_FIELD_DESCRIPTIONS = {
+    "agent": "Payload owner. operational_impact is responsible for patch, dependency, rollout, and validation judgment.",
+    "source_dataset": "Input dataset used to generate this payload.",
+    "record_count": "Number of CVE records in records.",
+    "records": "List of CVE operational impact records.",
+    "cve_id": "CVE identifier.",
+    "title": "Short vulnerability title.",
+    "product_name": "Affected product or library name.",
+    "affected_components": "Product and subcomponents that influence patch scope.",
+    "affected_version_range": "Affected version ranges derived from CPE data.",
+    "fixed_version": "First known fixed version inferred from version range or description.",
+    "patch_type": "Patch action class, such as service_upgrade or library_upgrade.",
+    "security_domain": "Security category carried over for context, not the main operational judgment.",
+    "operational_impacts": "Ways a careless patch can interrupt or degrade production.",
+    "dependency_touchpoints": "Dependencies, packaging points, configs, or platform surfaces to inspect before patching.",
+    "code_connectivity_risks": "Indirect code paths or runtime linkage risks that can widen patch blast radius.",
+    "rollout_considerations": "Deployment steps that reduce outage risk and preserve rollback options.",
+    "validation_focus": "Checks to prioritize before and after patch deployment.",
+    "mitigation_summaries": "Short action-oriented patch/remediation summary for the operations agent.",
+    "notes": "Original source description retained as context.",
+}
 
 @tool
 def load_collected_records(input_path: str = "data/focused_selected_raw_cves.json") -> dict:
@@ -221,28 +259,164 @@ def _risk_signals(record: dict) -> dict:
     }
 
 
+def _patch_type(record: dict) -> str:
+    product = _primary_product(record)
+    if product == "nginx":
+        return "service_upgrade"
+    if product == "apache-log4j":
+        return "library_upgrade"
+    return "unknown"
+
+
+def _append_unique(items: list[str], value: str) -> None:
+    if value not in items:
+        items.append(value)
+
+
 def _operational_impacts(record: dict) -> list[str]:
     impacts = []
-    for cwe in record.get("cwe_details", []):
-        for consequence in cwe.get("common_consequences", []):
-            for impact in consequence.get("impact", []):
-                if impact not in impacts:
-                    impacts.append(impact)
+    patch_type = _patch_type(record)
+    components = set(_product_components(record))
+
+    if patch_type == "service_upgrade":
+        _append_unique(impacts, "Service restart or reload can interrupt active traffic if rollout is not drained.")
+        _append_unique(impacts, "Runtime configuration compatibility must be checked before upgrading the service binary.")
+        _append_unique(impacts, "Modules compiled or packaged with the current service version can become incompatible.")
+    elif patch_type == "library_upgrade":
+        _append_unique(impacts, "Application rebuild and redeploy are required for services that package the vulnerable library.")
+        _append_unique(impacts, "Transitive dependency conflicts can break startup or runtime class loading.")
+        _append_unique(impacts, "Multiple bundled or shaded copies can leave some execution paths unpatched.")
+    else:
+        _append_unique(impacts, "Patch deployment can affect dependent services and should be staged before production rollout.")
+
+    if "dns-resolver" in components:
+        _append_unique(impacts, "DNS resolver behavior changes can affect upstream discovery and request routing.")
+    if {"jndi", "message-lookup", "ldap-endpoints", "log-parameters"} & components:
+        _append_unique(impacts, "Logging configuration or lookup behavior changes can affect code paths across many modules.")
+
     return impacts
+
+
+def _dependency_touchpoints(record: dict) -> list[str]:
+    product = _primary_product(record)
+    components = set(_product_components(record))
+
+    if product == "nginx":
+        touchpoints = [
+            "reverse proxy routes and upstream pools",
+            "nginx configuration files and included snippets",
+            "dynamic modules and OS packages",
+            "load balancer health checks",
+        ]
+        if "dns-resolver" in components:
+            touchpoints.append("DNS resolver configuration and upstream service discovery")
+        return touchpoints
+
+    if product == "apache-log4j":
+        return [
+            "direct and transitive Java dependencies",
+            "application packaging such as JAR, WAR, container image, or shared app-server library",
+            "logging configuration files and custom appenders/layouts",
+            "SLF4J, Log4j bridge, and framework logging adapters",
+            "shaded or duplicated log4j-core copies",
+        ]
+
+    return [
+        "dependent services",
+        "runtime configuration",
+        "build and deployment pipeline",
+    ]
+
+
+def _code_connectivity_risks(record: dict) -> list[str]:
+    product = _primary_product(record)
+
+    if product == "nginx":
+        return [
+            "Ingress, proxy, and routing changes can affect downstream applications even when their code is unchanged.",
+            "Connection draining, worker reload behavior, and health checks determine whether the upgrade is user-visible.",
+        ]
+
+    if product == "apache-log4j":
+        return [
+            "The library is commonly called through shared logging abstractions, so many services and modules can depend on it indirectly.",
+            "Classpath ordering, framework adapters, or shaded dependencies can cause different code paths to load different Log4j versions.",
+        ]
+
+    return [
+        "Indirect callers and runtime dependency resolution can widen the blast radius beyond the owning component.",
+    ]
+
+
+def _rollout_considerations(record: dict) -> list[str]:
+    patch_type = _patch_type(record)
+    fixed_version = _fixed_version(record)
+    version_note = f"Target fixed version: {fixed_version} or later." if fixed_version != "unknown" else "Target fixed version is unknown; confirm before rollout."
+
+    if patch_type == "service_upgrade":
+        return [
+            version_note,
+            "Use rolling upgrade or blue/green deployment where possible.",
+            "Drain traffic and verify health checks before removing old instances.",
+            "Keep a rollback package and previous configuration available.",
+        ]
+
+    if patch_type == "library_upgrade":
+        return [
+            version_note,
+            "Regenerate lockfiles or dependency manifests and rebuild the artifact.",
+            "Scan the final artifact or container image for duplicate vulnerable library copies.",
+            "Canary the redeploy and keep the previous artifact available for rollback.",
+        ]
+
+    return [
+        version_note,
+        "Stage the patch in a non-production environment first.",
+        "Prepare rollback steps before production deployment.",
+    ]
+
+
+def _validation_focus(record: dict) -> list[str]:
+    product = _primary_product(record)
+
+    if product == "nginx":
+        return [
+            "configuration syntax test",
+            "startup/reload test",
+            "proxy routing and upstream DNS resolution",
+            "health check and connection draining behavior",
+        ]
+
+    if product == "apache-log4j":
+        return [
+            "dependency tree and packaged artifact verification",
+            "application startup",
+            "logging configuration compatibility",
+            "critical request flows that emit logs",
+        ]
+
+    return [
+        "dependency compatibility",
+        "application startup",
+        "critical user flows",
+    ]
 
 
 def _mitigation_summaries(record: dict) -> list[str]:
     summaries = []
     fixed_version = _fixed_version(record)
+    patch_type = _patch_type(record)
 
     if fixed_version != "unknown":
         summaries.append(f"Upgrade to {fixed_version} or later.")
 
-    for cwe in record.get("cwe_details", []):
-        for mitigation in cwe.get("potential_mitigations", []):
-            description = mitigation.get("description", "")
-            if description and description not in summaries:
-                summaries.append(description)
+    if patch_type == "service_upgrade":
+        summaries.append("Validate configuration compatibility, drain traffic, then roll the service upgrade gradually.")
+    elif patch_type == "library_upgrade":
+        summaries.append("Update dependency manifests, rebuild the deployable artifact, and verify the packaged runtime version.")
+    else:
+        summaries.append("Stage the patch, validate dependent components, and prepare rollback before production rollout.")
+
     return summaries
 
 
@@ -298,6 +472,7 @@ def build_risk_assessment_payloads(dataset: dict) -> dict:
     return {
         "agent": "risk_assessment",
         "source_dataset": "focused_selected_raw_cves.json",
+        "field_descriptions": _RISK_ASSESSMENT_FIELD_DESCRIPTIONS,
         "record_count": len(records),
         "records": records,
     }
@@ -315,13 +490,13 @@ def build_operational_impact_payloads(dataset: dict) -> dict:
             "affected_components": _product_components(record),
             "affected_version_range": _affected_version_ranges(record),
             "fixed_version": _fixed_version(record),
-            "patch_type": (
-                "service_upgrade" if _primary_product(record) == "nginx"
-                else "library_upgrade" if _primary_product(record) == "apache-log4j"
-                else "unknown"
-            ),
+            "patch_type": _patch_type(record),
             "security_domain": _security_domain(record),
             "operational_impacts": _operational_impacts(record),
+            "dependency_touchpoints": _dependency_touchpoints(record),
+            "code_connectivity_risks": _code_connectivity_risks(record),
+            "rollout_considerations": _rollout_considerations(record),
+            "validation_focus": _validation_focus(record),
             "mitigation_summaries": _mitigation_summaries(record),
             "notes": record.get("description"),
         })
@@ -329,6 +504,7 @@ def build_operational_impact_payloads(dataset: dict) -> dict:
     return {
         "agent": "operational_impact",
         "source_dataset": "focused_selected_raw_cves.json",
+        "field_descriptions": _OPERATIONAL_IMPACT_FIELD_DESCRIPTIONS,
         "record_count": len(records),
         "records": records,
     }

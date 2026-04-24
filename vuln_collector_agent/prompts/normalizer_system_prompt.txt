@@ -60,12 +60,13 @@ matching_payload rules:
 - product_status must be "affected" when vulnerable is true.
 
 impact_payload rules:
-- impact_payload is for security and operational impact analysis only.
+- impact_payload is for patch and deployment operational impact analysis.
 - affected_frameworks_or_components should include the product and relevant subcomponents from title or description.
 - For "nginx resolver", include ["nginx", "resolver"].
 - Do not include generic terms like "application" or "product" as components.
 - Use cvss.vector_details to infer exploit conditions.
-- Use cwe_details.common_consequences to infer impact.
+- Use cwe_details.common_consequences to infer security impact, not patch rollout risk.
+- For operational impact, focus on variables that can stop or degrade production when patched carelessly: dependency compatibility, code connectivity, restart/reload needs, rollout blast radius, and rollback difficulty.
 - Use cwe_details.potential_mitigations only for general mitigation notes.
 
 patch_type normalization rules:
@@ -95,7 +96,7 @@ CVSS interpretation rules:
 
 CWE interpretation rules:
 - cwe_details.name and cwe_details.description describe the weakness type.
-- cwe_details.common_consequences describe possible security and operational outcomes.
+- cwe_details.common_consequences describe possible attacker/security outcomes.
 - related_weaknesses with nature "CanPrecede" can indicate possible downstream weakness categories.
 - Do not copy full CWE text into notes. Summarize briefly.
 

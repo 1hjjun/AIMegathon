@@ -1,6 +1,22 @@
 {
   "agent": "risk_assessment",
   "source_dataset": "focused_selected_raw_cves.json",
+  "field_descriptions": {
+    "agent": "Payload owner. risk_assessment is responsible for security severity and exploitability judgment.",
+    "source_dataset": "Input dataset used to generate this payload.",
+    "record_count": "Number of CVE records in records.",
+    "records": "List of CVE risk assessment records.",
+    "cve_id": "CVE identifier.",
+    "title": "Short vulnerability title.",
+    "description": "Source vulnerability description.",
+    "cvss": "CVSS score, vector, provider, and parsed vector details.",
+    "severity": "Severity bucket derived from CVSS score.",
+    "security_domain": "Normalized vulnerability category such as remote-code-execution, memory-corruption, or denial-of-service.",
+    "weaknesses": "CWE identifiers associated with the CVE.",
+    "cwe_names": "Human-readable CWE names.",
+    "risk_signals": "Exploitability signals extracted from CVSS, such as network exposure and privilege requirements.",
+    "common_consequences": "CWE-derived attacker/security outcomes. This is not patch rollout risk."
+  },
   "record_count": 2,
   "records": [
     {
