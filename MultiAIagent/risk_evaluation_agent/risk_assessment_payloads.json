@@ -1,0 +1,224 @@
+{
+  "agent": "risk_assessment",
+  "source_dataset": "focused_selected_raw_cves.json",
+  "record_count": 2,
+  "records": [
+    {
+      "cve_id": "CVE-2021-23017",
+      "title": "nginx: Off-by-one in ngx_resolver_copy() when labels are followed by a pointer to a root domain name",
+      "description": "A security issue in nginx resolver was identified, which might allow an attacker who is able to forge UDP packets from the DNS server to cause 1-byte memory overwrite, resulting in worker process crash or potential other impact.",
+      "cvss": {
+        "score": 7.7,
+        "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:L",
+        "provider": "nvd",
+        "vector_details": {
+          "version": "3.1",
+          "attack_vector": "network",
+          "attack_complexity": "high",
+          "privileges_required": "none",
+          "user_interaction": "none",
+          "scope": "unchanged",
+          "confidentiality_impact": "high",
+          "integrity_impact": "high",
+          "availability_impact": "low"
+        }
+      },
+      "severity": "high",
+      "security_domain": "memory-corruption",
+      "weaknesses": [
+        "CWE-193"
+      ],
+      "cwe_names": [
+        "Off-by-one Error"
+      ],
+      "risk_signals": {
+        "network_exploitable": true,
+        "no_privileges_required": true,
+        "no_user_interaction": true,
+        "attack_complexity": "high",
+        "scope": "unchanged"
+      },
+      "common_consequences": [
+        {
+          "scope": [
+            "Availability"
+          ],
+          "impact": [
+            "DoS: Crash, Exit, or Restart",
+            "DoS: Resource Consumption (CPU)",
+            "DoS: Resource Consumption (Memory)",
+            "DoS: Instability"
+          ],
+          "note": "This weakness will generally lead to undefined behavior and therefore crashes. In the case of overflows involving loop index variables, the likelihood of infinite loops is also high."
+        },
+        {
+          "scope": [
+            "Integrity"
+          ],
+          "impact": [
+            "Modify Memory"
+          ],
+          "note": "If the value in question is important to data (as opposed to flow), simple data corruption has occurred. Also, if the wrap around results in other conditions such as buffer overflows, further memory corruption may occur."
+        },
+        {
+          "scope": [
+            "Confidentiality",
+            "Availability",
+            "Access Control"
+          ],
+          "impact": [
+            "Execute Unauthorized Code or Commands",
+            "Bypass Protection Mechanism"
+          ],
+          "note": "This weakness can sometimes trigger buffer overflows which can be used to execute arbitrary code. This is usually outside the scope of a program's implicit security policy."
+        }
+      ]
+    },
+    {
+      "cve_id": "CVE-2021-44228",
+      "title": "Apache Log4j2 JNDI features do not protect against attacker controlled LDAP and other JNDI related endpoints",
+      "description": "Apache Log4j2 2.0-beta9 through 2.15.0 (excluding security releases 2.12.2, 2.12.3, and 2.3.1) JNDI features used in configuration, log messages, and parameters do not protect against attacker controlled LDAP and other JNDI related endpoints. An attacker who can control log messages or log message parameters can execute arbitrary code loaded from LDAP servers when message lookup substitution is enabled. From log4j 2.15.0, this behavior has been disabled by default. From version 2.16.0 (along with 2.12.2, 2.12.3, and 2.3.1), this functionality has been completely removed. Note that this vulnerability is specific to log4j-core and does not affect log4net, log4cxx, or other Apache Logging Services projects.",
+      "cvss": {
+        "score": 10,
+        "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+        "provider": "vulnrichment",
+        "vector_details": {
+          "version": "3.1",
+          "attack_vector": "network",
+          "attack_complexity": "low",
+          "privileges_required": "none",
+          "user_interaction": "none",
+          "scope": "changed",
+          "confidentiality_impact": "high",
+          "integrity_impact": "high",
+          "availability_impact": "high"
+        }
+      },
+      "severity": "critical",
+      "security_domain": "remote-code-execution",
+      "weaknesses": [
+        "CWE-20",
+        "CWE-400",
+        "CWE-502",
+        "CWE-917"
+      ],
+      "cwe_names": [
+        "Improper Input Validation",
+        "Uncontrolled Resource Consumption",
+        "Deserialization of Untrusted Data",
+        "Improper Neutralization of Special Elements used in an Expression Language Statement ('Expression Language Injection')"
+      ],
+      "risk_signals": {
+        "network_exploitable": true,
+        "no_privileges_required": true,
+        "no_user_interaction": true,
+        "attack_complexity": "low",
+        "scope": "changed"
+      },
+      "common_consequences": [
+        {
+          "scope": [
+            "Availability"
+          ],
+          "impact": [
+            "DoS: Crash, Exit, or Restart",
+            "DoS: Resource Consumption (CPU)",
+            "DoS: Resource Consumption (Memory)"
+          ],
+          "note": "An attacker could provide unexpected values and cause a program crash or arbitrary control of resource allocation, leading to excessive consumption of resources such as memory and CPU."
+        },
+        {
+          "scope": [
+            "Confidentiality"
+          ],
+          "impact": [
+            "Read Memory",
+            "Read Files or Directories"
+          ],
+          "note": "An attacker could read confidential data if they are able to control resource references."
+        },
+        {
+          "scope": [
+            "Integrity",
+            "Confidentiality",
+            "Availability"
+          ],
+          "impact": [
+            "Modify Memory",
+            "Execute Unauthorized Code or Commands"
+          ],
+          "note": "An attacker could use malicious input to modify data or possibly alter control flow in unexpected ways, including arbitrary command execution."
+        },
+        {
+          "scope": [
+            "Availability"
+          ],
+          "impact": [
+            "DoS: Crash, Exit, or Restart",
+            "DoS: Resource Consumption (CPU)",
+            "DoS: Resource Consumption (Memory)",
+            "DoS: Resource Consumption (Other)"
+          ],
+          "note": "If an attacker can trigger the allocation of the limited resources, but the number or size of the resources is not controlled, then the most common result is denial of service. This would prevent valid users from accessing the product, and it could potentially have an impact on the surrounding environment, i.e., the product may slow down, crash due to unhandled errors, or lock out legitimate users. For example, a memory exhaustion attack against an application could slow down the application as well as its host operating system."
+        },
+        {
+          "scope": [
+            "Access Control",
+            "Other"
+          ],
+          "impact": [
+            "Bypass Protection Mechanism",
+            "Other"
+          ],
+          "note": "In some cases it may be possible to force the product to \"fail open\" in the event of resource exhaustion. The state of the product -- and possibly the security functionality - may then be compromised."
+        },
+        {
+          "scope": [
+            "Integrity"
+          ],
+          "impact": [
+            "Modify Application Data",
+            "Unexpected State"
+          ],
+          "note": "Attackers can modify unexpected objects or data that was assumed to be safe from modification. Deserialized data or code could be modified without using the provided accessor functions, or unexpected functions could be invoked."
+        },
+        {
+          "scope": [
+            "Availability"
+          ],
+          "impact": [
+            "DoS: Resource Consumption (CPU)"
+          ],
+          "note": "If a function is making an assumption on when to terminate, based on a sentry in a string, it could easily never terminate."
+        },
+        {
+          "scope": [
+            "Other"
+          ],
+          "impact": [
+            "Varies by Context"
+          ],
+          "note": "The consequences can vary widely, because it depends on which objects or methods are being deserialized, and how they are used. Making an assumption that the code in the deserialized object is valid is dangerous and can enable exploitation. One example is attackers using gadget chains to perform unauthorized actions, such as generating a shell."
+        },
+        {
+          "scope": [
+            "Confidentiality"
+          ],
+          "impact": [
+            "Read Application Data"
+          ],
+          "note": ""
+        },
+        {
+          "scope": [
+            "Integrity"
+          ],
+          "impact": [
+            "Execute Unauthorized Code or Commands"
+          ],
+          "note": ""
+        }
+      ]
+    }
+  ]
+}
