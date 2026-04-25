@@ -86,19 +86,23 @@ flowchart LR
     D --> E[LLM 1차 판단<br/>지금 정보만으로 운영 조치 판단이 충분한가]
     E --> F{추가 운영 근거 필요?}
 
-    F -->|아니오| G[기준 record 유지]
+    F -->|아니오| G[현재 원천 데이터 그대로 사용]
     F -->|예| H[NVD 기반 운영 조치 근거 수집<br/>patch reference / advisory preview / KEV required action]
     H --> I[LLM 2차 판단<br/>공식 안내 문서를 더 읽어야 하는가]
     I --> J{공식 안내 문서 추가 확인 필요?}
 
-    J -->|아니오| G
-    J -->|예| K[선택된 공식 advisory 페이지 상세 수집<br/>title / summary / content_excerpt]
-    K --> G
+    J -->|아니오| K[운영 조치용 추가 근거만 반영]
+    J -->|예| L[선택된 공식 advisory 페이지 상세 수집<br/>title / summary / content_excerpt]
+    L --> M[운영 조치용 추가 근거 + 공식 문서 내용을 기존 record에 보강]
 
-    G --> L[focused_selected_raw_cves.json 생성<br/>원천 데이터 + 추가 evidence 저장]
-    L --> M[Strands + OpenAI Responses 정규화<br/>tools/payload_builder.py]
-    M --> N[risk_assessment_payloads.json 생성]
-    M --> O[operational_impact_payloads.json 생성]
+    G --> N[기준 record 정리]
+    K --> N
+    M --> N
+
+    N --> O[focused_selected_raw_cves.json 생성<br/>원천 데이터 + 추가 evidence 저장]
+    O --> P[Strands + OpenAI Responses 정규화<br/>tools/payload_builder.py]
+    P --> Q[risk_assessment_payloads.json 생성]
+    P --> R[operational_impact_payloads.json 생성]
 ```
 
 ## 생성 파일 설명
