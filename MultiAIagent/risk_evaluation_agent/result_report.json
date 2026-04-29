@@ -1,30 +1,20 @@
-╭──────────── megathon_agent_risk_0921 ─────────────╮
-│ Session: 6d63f035-be56-430e-a716-524b262c5604     │
-│ Request ID: ccb4696c-6430-485a-9af1-206eacbe2ff3  │
-│ ARN:                                              │
-│ arn:aws:bedrock-agentcore:ap-northeast-2:84233746 │
-│ 9411:runtime/megathon_agent_risk_0921-buWhfR4YSB  │
-│ Logs: aws logs tail                               │
-│ /aws/bedrock-agentcore/runtimes/megathon_agent_ri │
-│ sk_0921-buWhfR4YSB-DEFAULT                        │
-│ --log-stream-name-prefix                          │
-│ "2026/04/24/[runtime-logs]" --follow              │
-│       aws logs tail                               │
-│ /aws/bedrock-agentcore/runtimes/megathon_agent_ri │
-│ sk_0921-buWhfR4YSB-DEFAULT                        │
-│ --log-stream-name-prefix                          │
-│ "2026/04/24/[runtime-logs]" --since 1h            │
-│ GenAI Dashboard:                                  │
-│ https://console.aws.amazon.com/cloudwatch/home?re │
-│ gion=ap-northeast-2#gen-ai-observability/agent-co │
-│ re                                                │
-╰───────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────── risk_agent_1412 ───────────────────────────────────────────────╮
+│ Session: a3440665-5429-49af-8a03-70e7d54bf362                                                                 │
+│ Request ID: 5b18353a-46d7-4e35-b72d-41dbc17d150c                                                              │
+│ ARN: arn:aws:bedrock-agentcore:ap-northeast-2:842337469411:runtime/risk_agent_1412-AoOE5C7FI2                 │
+│ Logs: aws logs tail /aws/bedrock-agentcore/runtimes/risk_agent_1412-AoOE5C7FI2-DEFAULT                        │
+│ --log-stream-name-prefix "2026/04/29/[runtime-logs]" --follow                                                 │
+│       aws logs tail /aws/bedrock-agentcore/runtimes/risk_agent_1412-AoOE5C7FI2-DEFAULT                        │
+│ --log-stream-name-prefix "2026/04/29/[runtime-logs]" --since 1h                                               │
+│ GenAI Dashboard:                                                                                              │
+│ https://console.aws.amazon.com/cloudwatch/home?region=ap-northeast-2#gen-ai-observability/agent-core          │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 Response:
 [
     {
         "cve_id": "CVE-2021-23017",
-        "title": "nginx Overflow",
+        "title": "Nginx off-by-one memory corruption",
         "impacted_assets": [
             {
                 "instance_id": "i-0c2fef1a84dae928c",
@@ -32,8 +22,15 @@ Response:
                 "exploit_available": "Yes",
                 "asset_criticality": "Prod",
                 "exposure_level": "Public",
-                "potential_impact": "RCE",
-                "summary": "Critical Pub Srv"
+                "potential_impact": "Worker process crash, potential other impact",
+                "inbound_open_ports": "80, 443, 22",
+                "outbound_allow_rules": "0.0.0.0/0:All",
+                "security_group_status": "Full-Open",
+                "attack_prerequisites_reasoning": "UDP_Packet_Forgery,Nginx_Resolver_Enabled",
+                "cve_specific_findings": {
+                    "Nginx_Version": "1.20.0",
+                    "Nginx_Resolver_Enabled": "Yes"
+                }
             },
             {
                 "instance_id": "i-09a2c4e44f742a261",
@@ -41,32 +38,55 @@ Response:
                 "exploit_available": "Yes",
                 "asset_criticality": "Prod",
                 "exposure_level": "Public",
-                "potential_impact": "RCE",
-                "summary": "Critical Pub Srv"
+                "potential_impact": "Worker process crash, potential other impact",
+                "inbound_open_ports": "80, 443, 22",
+                "outbound_allow_rules": "0.0.0.0/0:All",
+                "security_group_status": "Full-Open",
+                "attack_prerequisites_reasoning": "UDP_Packet_Forgery,Nginx_Resolver_Enabled",
+                "cve_specific_findings": {
+                    "Nginx_Version": "1.20.0",
+                    "Nginx_Resolver_Enabled": "Yes"
+                }
             }
         ]
     },
     {
         "cve_id": "CVE-2021-44228",
-        "title": "Log4j RCE",
+        "title": "Log4j JNDI code execution",
         "impacted_assets": [
             {
                 "instance_id": "i-05543a1dbf51678d0",
                 "calculated_risk": "CRITICAL",
                 "exploit_available": "Yes",
                 "asset_criticality": "Prod",
-                "exposure_level": "Internal",
-                "potential_impact": "RCE",
-                "summary": "Critical App Srv"
+                "exposure_level": "Private",
+                "potential_impact": "Remote code execution",
+                "inbound_open_ports": "80, 443",
+                "outbound_allow_rules": "0.0.0.0/0:All",
+                "security_group_status": "Restricted",
+                "attack_prerequisites_reasoning": "JNDI_Lookup_Enabled,Untrusted_LDAP_Server_Access",
+                "cve_specific_findings": {
+                    "Log4j_Version": "2.14.1",
+                    "JNDI_Lookup_Enabled": "Yes",
+                    "LDAP_Server_Accessible": "Yes"
+                }
             },
             {
                 "instance_id": "i-08ceaafda177f0e64",
                 "calculated_risk": "CRITICAL",
                 "exploit_available": "Yes",
                 "asset_criticality": "Prod",
-                "exposure_level": "Internal",
-                "potential_impact": "RCE",
-                "summary": "Critical App Srv"
+                "exposure_level": "Private",
+                "potential_impact": "Remote code execution",
+                "inbound_open_ports": "80, 443",
+                "outbound_allow_rules": "0.0.0.0/0:All",
+                "security_group_status": "Restricted",
+                "attack_prerequisites_reasoning": "JNDI_Lookup_Enabled,Untrusted_LDAP_Server_Access",
+                "cve_specific_findings": {
+                    "Log4j_Version": "2.14.1",
+                    "JNDI_Lookup_Enabled": "Yes",
+                    "LDAP_Server_Accessible": "Yes"
+                }
             }
         ]
     }
