@@ -21,14 +21,15 @@ def get_refined_vulnerability():
                 "cve_id": record.get("cve_id"),
                 "severity": record.get("severity"),
                 "score": record.get("cvss", {}).get("score"),
-                # AI가 공격 가능성을 판단할 핵심 매트릭스
                 "attack_vector": cvss_details.get("attack_vector"),
                 "attack_complexity": cvss_details.get("attack_complexity"),
                 "privileges_required": cvss_details.get("privileges_required"),
-                # 어떤 도메인의 취약점인지 (RCE, Memory 등)
                 "domain": record.get("security_domain"),
-                # 요약된 설명 (너무 길면 핵심만)
-                "summary": record.get("title")
+                "summary": record.get("title"),
+                
+                # 👇 [여기가 추가되어야 할 핵심 포인트입니다!] 👇
+                "description": record.get("description"),
+                "weakness_type": record.get("cwe_names", [])
             }
             refined_records.append(refined_item)
             
