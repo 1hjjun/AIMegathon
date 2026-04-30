@@ -1,33 +1,25 @@
 import json
 import os
+import re
+import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any, TypeVar
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field
+from openai import OpenAI
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 try:
     from .tooling import tool
 except ImportError:
     from tools.tooling import tool
 
-try:
-    from strands import Agent as _StrandsAgent
-    from strands.models.openai_responses import OpenAIResponsesModel as _StrandsOpenAIResponsesModel
-except ImportError:
-    _StrandsAgent = None
-    _StrandsOpenAIResponsesModel = None
-
-if TYPE_CHECKING:
-    from strands import Agent as StrandsAgent
-    from strands.models.openai_responses import OpenAIResponsesModel as StrandsOpenAIResponsesModel
-
 _BASE_DIR = Path(__file__).parent.parent
 _PROMPTS_DIR = _BASE_DIR / "prompts"
 _NORMALIZER_PROMPT_PATH = _PROMPTS_DIR / "normalizer_system_prompt.txt"
 _EVIDENCE_GATE_PROMPT_PATH = _PROMPTS_DIR / "evidence_gate_system_prompt.txt"
 _VENDOR_FOLLOWUP_PROMPT_PATH = _PROMPTS_DIR / "vendor_followup_system_prompt.txt"
-_DEFAULT_OPENAI_MODEL = "gpt-5.4"
+_DEFAULT_OPENAI_MODEL = "gpt-4o"
 
 _RISK_ASSESSMENT_FIELD_DESCRIPTIONS = {
     "agent": "Payload owner. risk_assessment is responsible for security severity and exploitability judgment.",
@@ -38,12 +30,12 @@ _RISK_ASSESSMENT_FIELD_DESCRIPTIONS = {
     "title": "Short vulnerability title.",
     "description": "Source vulnerability description.",
     "cvss": "Source CVSS score, vector, provider, and parsed vector details.",
-    "severity": "Strands agent severity bucket derived from the overall evidence.",
-    "security_domain": "Strands agent-normalized vulnerability category.",
+    "severity": "AI-generated severity bucket derived from the overall evidence.",
+    "security_domain": "AI-normalized vulnerability category.",
     "weaknesses": "CWE identifiers associated with the CVE.",
     "cwe_names": "Human-readable CWE names.",
-    "risk_signals": "Strands agent assessment of exploitability conditions and attack path.",
-    "common_consequences": "Strands agent summary of likely attacker or security outcomes.",
+    "risk_signals": "AI assessment of exploitability conditions and attack path.",
+    "common_consequences": "AI summary of likely attacker or security outcomes.",
     "analyst_summary": "Short security summary for triage.",
     "sources_used": "Evidence sources that informed the final synthesis, including baseline CVE/CWE data and any optional enrichment.",
     "evidence_summary": "Short summary of whether extra evidence was collected, why it was or was not collected, and the most relevant enrichment highlights.",
@@ -62,7 +54,7 @@ _OPERATIONAL_IMPACT_FIELD_DESCRIPTIONS = {
     "fixed_version": "First known fixed version inferred from the evidence.",
     "patch_type": "Patch action class such as service_upgrade or library_upgrade.",
     "security_domain": "Security category carried over for context.",
-    "operational_impacts": "Strands agent-generated ways a careless patch can interrupt or degrade production.",
+    "operational_impacts": "AI-generated ways a careless patch can interrupt or degrade production.",
     "dependency_touchpoints": "Dependencies, packaging points, configs, or platform surfaces to inspect before patching.",
     "code_connectivity_risks": "Indirect code paths or runtime linkage risks that can widen patch blast radius.",
     "rollout_considerations": "Deployment steps that reduce outage risk and preserve rollback options.",
@@ -83,6 +75,16 @@ class RiskSignals(BaseModel):
     scope: str = "unknown"
     exploit_path_summary: str = "unknown"
 
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_input(cls, value: Any) -> Any:
+        if isinstance(value, list):
+            summary = " ".join(str(item).strip() for item in value if str(item).strip())
+            return {"exploit_path_summary": summary or "unknown"}
+        if isinstance(value, str):
+            return {"exploit_path_summary": value.strip() or "unknown"}
+        return value
+
 
 class RiskPayload(BaseModel):
     severity: str = "unknown"
@@ -90,6 +92,16 @@ class RiskPayload(BaseModel):
     risk_signals: RiskSignals = Field(default_factory=RiskSignals)
     common_consequences: list[str] = Field(default_factory=list)
     analyst_summary: str = "unknown"
+
+    @field_validator("common_consequences", mode="before")
+    @classmethod
+    def _coerce_common_consequences(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            text = value.strip()
+            return [text] if text else []
+        return value
 
 
 class OperationalPayload(BaseModel):
@@ -108,10 +120,41 @@ class OperationalPayload(BaseModel):
     vendor_specific_guidance: list[str] = Field(default_factory=list)
     notes: str = "unknown"
 
+    @field_validator("notes", mode="before")
+    @classmethod
+    def _coerce_notes(cls, value: Any) -> Any:
+        if value is None:
+            return "unknown"
+        if isinstance(value, list):
+            parts = [str(item).strip() for item in value if str(item).strip()]
+            return " ".join(parts) if parts else "unknown"
+        return value
+
+    @field_validator(
+        "affected_components",
+        "affected_version_range",
+        "operational_impacts",
+        "dependency_touchpoints",
+        "code_connectivity_risks",
+        "rollout_considerations",
+        "validation_focus",
+        "mitigation_summaries",
+        "vendor_specific_guidance",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_list_fields(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            text = value.strip()
+            return [text] if text else []
+        return value
+
 
 class VulnerabilityPayloadBundle(BaseModel):
-    risk_payload: RiskPayload
-    operational_payload: OperationalPayload
+    risk_payload: RiskPayload = Field(validation_alias="risk_assessment")
+    operational_payload: OperationalPayload = Field(validation_alias="operational_impact")
 
 
 class OperationalEvidenceDecision(BaseModel):
@@ -133,6 +176,8 @@ _ANALYSIS_CACHE: dict[str, VulnerabilityPayloadBundle] = {}
 _EVIDENCE_DECISION_CACHE: dict[str, OperationalEvidenceDecision] = {}
 _VENDOR_FOLLOWUP_DECISION_CACHE: dict[str, VendorFollowupDecision] = {}
 
+TModel = TypeVar("TModel", bound=BaseModel)
+
 
 @tool
 def load_collected_records(input_path: str = "data/focused_selected_raw_cves.json") -> dict:
@@ -141,18 +186,14 @@ def load_collected_records(input_path: str = "data/focused_selected_raw_cves.jso
         return json.load(handle)
 
 
-def _require_strands() -> tuple[Any, Any]:
-    if _StrandsAgent is None or _StrandsOpenAIResponsesModel is None:
-        raise RuntimeError(
-            "Strands is not available in this interpreter. Activate your Python 3.13 virtual environment and install strands-agents."
-        )
-    return _StrandsAgent, _StrandsOpenAIResponsesModel
+MAX_RETRIES = 3
+RETRY_DELAY = 5
 
 
 def _require_openai_api_key() -> str:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is required for Strands-based payload generation")
+        raise RuntimeError("OPENAI_API_KEY is required for AI-based payload generation")
     return api_key
 
 
@@ -172,61 +213,65 @@ def _load_vendor_followup_prompt() -> str:
     return _VENDOR_FOLLOWUP_PROMPT_PATH.read_text(encoding="utf-8").strip()
 
 
-def _build_normalization_agent() -> "StrandsAgent":
-    agent_cls, model_cls = _require_strands()
-    model = model_cls(
-        client_args={
-            "api_key": _require_openai_api_key(),
-        },
-        model_id=_openai_model_id(),
-        params={
-            "max_output_tokens": 2400,
-        },
-    )
-    return agent_cls(
-        model=model,
-        system_prompt=_load_normalizer_prompt(),
-        name="vulnerability-normalizer",
-        description="Normalizes one collected CVE record into asset, risk, and operational payloads.",
-    )
+def _extract_json_blob(text: str) -> Any:
+    text = text.strip()
+    if not text:
+        raise ValueError("LLM response was empty")
+
+    fence_match = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
+    if fence_match:
+        text = fence_match.group(1).strip()
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    decoder = json.JSONDecoder()
+    for idx, ch in enumerate(text):
+        if ch not in '[{':
+            continue
+        try:
+            parsed, _ = decoder.raw_decode(text[idx:])
+            return parsed
+        except json.JSONDecodeError:
+            continue
+    raise ValueError("LLM JSON response could not be parsed")
 
 
-def _build_evidence_gate_agent() -> "StrandsAgent":
-    agent_cls, model_cls = _require_strands()
-    model = model_cls(
-        client_args={
-            "api_key": _require_openai_api_key(),
-        },
-        model_id=_openai_model_id(),
-        params={
-            "max_output_tokens": 700,
-        },
-    )
-    return agent_cls(
-        model=model,
-        system_prompt=_load_evidence_gate_prompt(),
-        name="operational-evidence-gate",
-        description="Decides whether a CVE record needs extra operational remediation evidence before final synthesis.",
-    )
+def _generate_with_fallback(client: OpenAI, instructions: str, prompt: str) -> Any:
+    last_exc: Exception | None = None
+    candidates = [_openai_model_id()]
+    for model_name in candidates:
+        for attempt in range(MAX_RETRIES):
+            try:
+                return client.responses.create(
+                    model=model_name,
+                    instructions=instructions,
+                    input=[{"role": "user", "content": prompt}],
+                )
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                message = str(exc)
+                transient = any(token in message for token in ("429", "500", "502", "503", "timeout", "Timeout"))
+                if transient and attempt < MAX_RETRIES - 1:
+                    time.sleep(RETRY_DELAY)
+                    continue
+                if transient:
+                    break
+                raise
+    raise RuntimeError(f"All model attempts failed: {last_exc}")
 
 
-def _build_vendor_followup_agent() -> "StrandsAgent":
-    agent_cls, model_cls = _require_strands()
-    model = model_cls(
-        client_args={
-            "api_key": _require_openai_api_key(),
-        },
-        model_id=_openai_model_id(),
-        params={
-            "max_output_tokens": 900,
-        },
-    )
-    return agent_cls(
-        model=model,
-        system_prompt=_load_vendor_followup_prompt(),
-        name="vendor-followup-gate",
-        description="Decides whether vendor-packaged downstream context should be investigated and which vendor advisories to inspect more deeply.",
-    )
+def _call_llm_model(system_prompt: str, prompt: str, model_type: type[TModel]) -> TModel:
+    client = OpenAI(api_key=_require_openai_api_key())
+    response = _generate_with_fallback(client, system_prompt, prompt)
+    output_text = getattr(response, "output_text", "") or ""
+    payload = _extract_json_blob(output_text)
+    try:
+        return model_type.model_validate(payload)
+    except ValidationError as exc:
+        raise RuntimeError(f"Structured output validation failed for {model_type.__name__}: {exc}") from exc
 
 
 def _cpe_criteria(record: dict) -> list[str]:
@@ -321,18 +366,20 @@ def _enforce_upstream_vendor_followup(record: dict, decision: VendorFollowupDeci
         return decision
 
     upstream_previews = _upstream_vendor_previews(record)
-    upstream_urls = [
-        preview.get("url") for preview in upstream_previews
-        if isinstance(preview.get("url"), str) and preview.get("url")
-    ]
+    upstream_urls: list[str] = []
+    for preview in upstream_previews:
+        url = preview.get("url")
+        if isinstance(url, str) and url:
+            upstream_urls.append(url)
+
     if not upstream_urls:
         return decision
 
-    filtered_urls = [url for url in decision.vendor_urls if url in upstream_urls]
+    filtered_urls: list[str] = [url for url in decision.vendor_urls if url in upstream_urls]
     if not filtered_urls:
         filtered_urls = upstream_urls[:2]
 
-    filtered_domains = []
+    filtered_domains: list[str] = []
     for url in filtered_urls:
         domain = urlparse(url).netloc
         if domain and domain not in filtered_domains:
@@ -433,16 +480,11 @@ def decide_operational_evidence_requirement(record: dict) -> dict:
     if cached is not None:
         return cached.model_dump()
 
-    agent = _build_evidence_gate_agent()
-    result = agent(
+    structured_output = _call_llm_model(
+        _load_evidence_gate_prompt(),
         _evidence_gate_prompt(record),
-        structured_output_model=OperationalEvidenceDecision,
+        OperationalEvidenceDecision,
     )
-    structured_output = result.structured_output
-    if structured_output is None:
-        raise RuntimeError(f"Strands evidence gate did not return structured output for {cve_id}")
-    if not isinstance(structured_output, OperationalEvidenceDecision):
-        raise RuntimeError(f"Strands evidence gate returned an unexpected structured output type for {cve_id}")
 
     _EVIDENCE_DECISION_CACHE[cve_id] = structured_output
     return structured_output.model_dump()
@@ -468,16 +510,11 @@ def decide_vendor_followup_requirement(record: dict) -> dict:
         _VENDOR_FOLLOWUP_DECISION_CACHE[cve_id] = result
         return result.model_dump()
 
-    agent = _build_vendor_followup_agent()
-    result = agent(
+    structured_output = _call_llm_model(
+        _load_vendor_followup_prompt(),
         _vendor_followup_prompt(record),
-        structured_output_model=VendorFollowupDecision,
+        VendorFollowupDecision,
     )
-    structured_output = result.structured_output
-    if structured_output is None:
-        raise RuntimeError(f"Strands vendor follow-up gate did not return structured output for {cve_id}")
-    if not isinstance(structured_output, VendorFollowupDecision):
-        raise RuntimeError(f"Strands vendor follow-up gate returned an unexpected structured output type for {cve_id}")
 
     structured_output = _enforce_upstream_vendor_followup(record, structured_output)
     _VENDOR_FOLLOWUP_DECISION_CACHE[cve_id] = structured_output
@@ -490,19 +527,15 @@ def _normalize_record_with_agent(record: dict) -> VulnerabilityPayloadBundle:
     if cached is not None:
         return cached
 
-    agent = _build_normalization_agent()
-    result = agent(
+    structured_output = _call_llm_model(
+        _load_normalizer_prompt(),
         _record_prompt(record),
-        structured_output_model=VulnerabilityPayloadBundle,
+        VulnerabilityPayloadBundle,
     )
-    structured_output = result.structured_output
-    if structured_output is None:
-        raise RuntimeError(f"Strands agent did not return structured output for {cve_id}")
-    if not isinstance(structured_output, VulnerabilityPayloadBundle):
-        raise RuntimeError(f"Strands agent returned an unexpected structured output type for {cve_id}")
 
-    _ANALYSIS_CACHE[cve_id] = structured_output
-    return structured_output
+    bundle = structured_output
+    _ANALYSIS_CACHE[cve_id] = bundle
+    return bundle
 
 
 def _normalized_records(dataset: dict) -> list[VulnerabilityPayloadBundle]:

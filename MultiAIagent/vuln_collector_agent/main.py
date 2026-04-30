@@ -37,6 +37,7 @@ ENV_PATHS = [
 FOCUSED_CVE_OUTPUT_PATH = "data/focused_selected_raw_cves.json"
 RISK_PAYLOAD_OUTPUT_PATH = "data/risk_assessment_payloads.json"
 OPERATIONAL_PAYLOAD_OUTPUT_PATH = "data/operational_impact_payloads.json"
+ASSET_MATCHING_PAYLOAD_OUTPUT_PATH = "data/asset_matching_payload.json"
 DEFAULT_CVE_IDS = [
     "CVE-2021-23017",
     "CVE-2021-44228",
@@ -208,10 +209,103 @@ def collect_selected_cve_details(cve_ids: list[str], evidence_mode: str = "auto"
     }
 
 
+def _collect_cpe_criteria(raw_cve: dict) -> list[str]:
+    criteria: list[str] = []
+    for config in raw_cve.get("nvd_cpe_configurations", []) if isinstance(raw_cve.get("nvd_cpe_configurations"), list) else []:
+        if not isinstance(config, dict):
+            continue
+        for node in config.get("nodes", []) if isinstance(config.get("nodes"), list) else []:
+            if not isinstance(node, dict):
+                continue
+            for match in node.get("cpeMatch", []) if isinstance(node.get("cpeMatch"), list) else []:
+                if not isinstance(match, dict):
+                    continue
+                if match.get("vulnerable") is False:
+                    continue
+                value = str(match.get("criteria") or "").strip()
+                if value and value not in criteria:
+                    criteria.append(value)
+    return criteria
+
+
+
+def _version_clause(match: dict) -> str:
+    clauses: list[str] = []
+    start_including = str(match.get("versionStartIncluding") or "").strip()
+    start_excluding = str(match.get("versionStartExcluding") or "").strip()
+    end_including = str(match.get("versionEndIncluding") or "").strip()
+    end_excluding = str(match.get("versionEndExcluding") or "").strip()
+    if start_including:
+        clauses.append(f">={start_including}")
+    if start_excluding:
+        clauses.append(f">{start_excluding}")
+    if end_including:
+        clauses.append(f"<={end_including}")
+    if end_excluding:
+        clauses.append(f"<{end_excluding}")
+    return " ".join(clauses)
+
+
+
+def _affected_version_ranges(raw_cve: dict) -> list[str]:
+    ranges: list[str] = []
+    for config in raw_cve.get("nvd_cpe_configurations", []) if isinstance(raw_cve.get("nvd_cpe_configurations"), list) else []:
+        if not isinstance(config, dict):
+            continue
+        for node in config.get("nodes", []) if isinstance(config.get("nodes"), list) else []:
+            if not isinstance(node, dict):
+                continue
+            for match in node.get("cpeMatch", []) if isinstance(node.get("cpeMatch"), list) else []:
+                if not isinstance(match, dict):
+                    continue
+                if match.get("vulnerable") is False:
+                    continue
+                clause = _version_clause(match)
+                if clause and clause not in ranges:
+                    ranges.append(clause)
+    return ranges
+
+
+
+def build_asset_matching_payloads(dataset: dict, operational_payload: dict | None = None) -> dict:
+    op_by_cve = {}
+    if isinstance(operational_payload, dict):
+        for record in operational_payload.get("records", []) if isinstance(operational_payload.get("records"), list) else []:
+            if isinstance(record, dict) and record.get("cve_id"):
+                op_by_cve[str(record.get("cve_id"))] = record
+
+    records = []
+    for raw_cve in dataset.get("records", []) if isinstance(dataset.get("records"), list) else []:
+        if not isinstance(raw_cve, dict):
+            continue
+        cve_id = str(raw_cve.get("cve_id") or "").strip()
+        op_record = op_by_cve.get(cve_id, {})
+        product_name = str(op_record.get("product_name") or "").strip() or "unknown"
+        fixed_version = str(op_record.get("fixed_version") or "").strip() or "unknown"
+        records.append({
+            "cve_id": cve_id,
+            "product_name": product_name,
+            "affected_version_range": _affected_version_ranges(raw_cve),
+            "fixed_version": fixed_version,
+            "product_status": "affected",
+            "cpe_criteria": _collect_cpe_criteria(raw_cve),
+        })
+
+    return {
+        "agent": "asset_matching",
+        "source_dataset": "focused_selected_raw_cves.json",
+        "record_count": len(records),
+        "records": records,
+    }
+
+
+
 def generate_agent_payloads(dataset: dict) -> dict[str, dict]:
+    operational_payload = build_operational_impact_payloads(dataset)
     return {
         RISK_PAYLOAD_OUTPUT_PATH: build_risk_assessment_payloads(dataset),
-        OPERATIONAL_PAYLOAD_OUTPUT_PATH: build_operational_impact_payloads(dataset),
+        OPERATIONAL_PAYLOAD_OUTPUT_PATH: operational_payload,
+        ASSET_MATCHING_PAYLOAD_OUTPUT_PATH: build_asset_matching_payloads(dataset, operational_payload),
     }
 
 
