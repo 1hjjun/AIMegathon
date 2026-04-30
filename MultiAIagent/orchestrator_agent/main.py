@@ -28,14 +28,8 @@ from bedrock_agentcore import BedrockAgentCoreApp
 DEFAULT_REGION     = os.environ.get("DEFAULT_REGION", "ap-northeast-2")
 DEFAULT_STACK_NAME = os.environ.get("CF_STACK_NAME", "megathon")
 
-ASSET_MATCHING_ARN = os.environ.get(
-    "ASSET_MATCHING_ARN",
-    "arn:aws:bedrock-agentcore:ap-northeast-2:842337469411:runtime/asset_matching_agent-zoDcgCEt8u",
-)
-RISK_EVAL_ARN = os.environ.get(
-    "RISK_EVAL_ARN",
-    "arn:aws:bedrock-agentcore:ap-northeast-2:842337469411:runtime/risk_evaluation_agent-A2PkRd5CzC",
-)
+ASSET_MATCHING_ARN = os.environ.get("ASSET_MATCHING_ARN")
+RISK_EVAL_ARN      = os.environ.get("RISK_EVAL_ARN")
 
 app = BedrockAgentCoreApp()
 
@@ -109,6 +103,9 @@ def invoke(payload):
     payload = payload or {}
     region     = payload.get("region", DEFAULT_REGION)
     stack_name = payload.get("stack_name", DEFAULT_STACK_NAME)
+
+    if not ASSET_MATCHING_ARN or not RISK_EVAL_ARN:
+        return {"error": "환경변수 ASSET_MATCHING_ARN, RISK_EVAL_ARN 이 설정되지 않았습니다."}
 
     cve_payload = payload.get("cve_payload") or payload.get("vulnerability_payload")
     if not cve_payload:

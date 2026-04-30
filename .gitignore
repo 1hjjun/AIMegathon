@@ -1,0 +1,12 @@
+# AgentCore 배포 설정 — AWS 계정 ID, ARN, IAM 역할 등 민감 정보 포함
+# 팀 내부 채널로 별도 공유
+**/.bedrock_agentcore.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# 환경 변수
+.env
+.env.*
