@@ -1,7 +1,7 @@
 {
   "vpc_id": "vpc-0e23208119abaa8e8",
   "region": "ap-northeast-2",
-  "collected_at": "2026-04-29T14:23:21.182306+00:00",
+  "collected_at": "2026-04-30T00:17:01.079600+00:00",
   "assets": [
     {
       "asset_id": "i-0daa06cb4dbdc6b86",
@@ -19,22 +19,22 @@
         "environment": "production",
         "network_exposure": "public",
         "business_criticality": "high",
-        "data_classification": "unknown"
+        "data_classification": "Internal"
       },
       "network_context": {
-        "public_ip": "3.38.173.206",
+        "public_ip": "",
         "listening_ports": [
           22,
           80
         ],
-        "is_internet_facing": true
+        "is_internet_facing": false
       },
       "security_context": {
         "attached_iam_role": "megathon-SSMRole-yJgimM721Qo0",
         "running_as_root": [
           "nginx"
         ],
-        "imds_v2_enforced": false,
+        "imds_v2_enforced": true,
         "selinux_enforced": false
       },
       "os_info": {
@@ -67,7 +67,7 @@
         "environment": "production",
         "network_exposure": "private",
         "business_criticality": "high",
-        "data_classification": "unknown"
+        "data_classification": "Internal"
       },
       "network_context": {
         "public_ip": "",
@@ -82,7 +82,7 @@
         "running_as_root": [
           "java"
         ],
-        "imds_v2_enforced": true,
+        "imds_v2_enforced": false,
         "selinux_enforced": false
       },
       "os_info": {
@@ -115,15 +115,15 @@
         "environment": "production",
         "network_exposure": "public",
         "business_criticality": "high",
-        "data_classification": "unknown"
+        "data_classification": "Internal"
       },
       "network_context": {
-        "public_ip": "43.203.243.195",
+        "public_ip": "",
         "listening_ports": [
           22,
           80
         ],
-        "is_internet_facing": true
+        "is_internet_facing": false
       },
       "security_context": {
         "attached_iam_role": "megathon-SSMRole-yJgimM721Qo0",
@@ -176,7 +176,7 @@
       "security_context": {
         "attached_iam_role": "megathon-SSMRole-yJgimM721Qo0",
         "running_as_root": [],
-        "imds_v2_enforced": true,
+        "imds_v2_enforced": false,
         "selinux_enforced": false
       },
       "os_info": {
@@ -201,7 +201,7 @@
         "environment": "production",
         "network_exposure": "private",
         "business_criticality": "high",
-        "data_classification": "Internal"
+        "data_classification": "unknown"
       },
       "network_context": {
         "public_ip": "",
@@ -216,7 +216,7 @@
         "running_as_root": [
           "java"
         ],
-        "imds_v2_enforced": true,
+        "imds_v2_enforced": false,
         "selinux_enforced": false
       },
       "os_info": {

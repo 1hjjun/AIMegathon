@@ -1,9 +1,8 @@
-bedrock-agentcore-starter-toolkit
+bedrock-agentcore
 boto3
+strands-agents
 pydantic
-pydantic-core
 typing-extensions
-annotated-types
 opentelemetry-api
 opentelemetry-sdk
 opentelemetry-semantic-conventions
@@ -11,5 +10,3 @@ opentelemetry-instrumentation
 opentelemetry-instrumentation-threading
 opentelemetry-instrumentation-logging
 watchdog
-requests
-PyYAML
