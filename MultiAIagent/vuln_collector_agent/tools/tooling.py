@@ -1,5 +1,7 @@
-try:
-    from strands import tool
-except ImportError:
-    def tool(func):
-        return func
+from typing import Any, Callable, TypeVar
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def tool(func: F) -> F:
+    return func
