@@ -445,12 +445,7 @@ Conversationlog/PatchToAsset/
 
 - 현재 버전은 `patch_impact`까지 포함
 
-2. 오케스트라가 더 얇아짐
-
-- 현재 버전은 복잡한 스웜/대화 orchestration보다
-- "순차 실행 + 단계별 테스트" 쪽으로 정리됨
-
-3. 실행 모드가 늘어남
+2. 실행 모드가 늘어남
 
 - `full`
 - `vuln_only`
@@ -459,18 +454,18 @@ Conversationlog/PatchToAsset/
 - `patch_only`
 - `test`
 
-4. 결과 저장 체계가 강화됨
+3. 결과 저장 체계가 강화됨
 
 - `OchestraResult/<agent>/<run_tag>`
 - `latest`
 - `Conversationlog/PatchToAsset`
 
-5. 로컬 실행기 추가
+4. 로컬 실행기 추가
 
 - `run_orchestrator_runtime.py`로
 - runtime 호출, 결과 저장, 최신 결과 재사용까지 한 번에 가능
 
-6. patch 운영 방식이 달라짐
+5. patch 운영 방식이 달라짐
 
 - 현재 patch는 컨테이너 runtime 기준
 - follow-up 대화 로그도 따로 저장
@@ -478,7 +473,7 @@ Conversationlog/PatchToAsset/
 한 줄로 요약하면:
 
 - `hyungjun` 버전은 핵심 파이프라인 뼈대에 가깝고
-- 현재 버전은 patch 단계, 실행기, 결과 저장, follow-up 로그까지 붙은 운영형 작업본에 가깝습니다.
+- 현재 버전은 patch 단계, 실행 모드, 결과 저장, 로컬 실행기까지 붙은 운영형 작업본에 가깝습니다.
 
 ## 현재 기준으로 기억하면 좋은 것
 
