@@ -1,0 +1,18 @@
+bedrock_agentcore:
+  agent_id: null
+  agent_arn: null
+  agent_name: vuln_collector_agent
+  entrypoint: runtime_app.py
+  execution_role: arn:aws:iam::842337469411:role/service-role/AmazonBedrockAgentCoreRuntimeDefaultServiceRole-k0y7q
+  platform: linux/arm64
+  runtime_type: PYTHON_3_13
+  s3_path: s3://bedrock-agentcore-codebuild-sources-842337469411-ap-northeast-2
+  network_mode: PUBLIC
+
+codebuild:
+  enabled: true
+
+memory: 2048
+
+observability:
+  enabled: true
