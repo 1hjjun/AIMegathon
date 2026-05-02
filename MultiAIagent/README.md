@@ -465,11 +465,6 @@ Conversationlog/PatchToAsset/
 - `run_orchestrator_runtime.py`로
 - runtime 호출, 결과 저장, 최신 결과 재사용까지 한 번에 가능
 
-5. patch 운영 방식이 달라짐
-
-- 현재 patch는 컨테이너 runtime 기준
-- follow-up 대화 로그도 따로 저장
-
 한 줄로 요약하면:
 
 - `hyungjun` 버전은 핵심 파이프라인 뼈대에 가깝고
