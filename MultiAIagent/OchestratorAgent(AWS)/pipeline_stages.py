@@ -46,10 +46,9 @@ def _load_followup_request(path: Path | None = None) -> dict[str, Any]:
     return _load_json(path or PATCH_FOLLOWUP_REQUEST_PATH, {"requests": [], "request_count": 0})
 
 
-def run_vuln_stage(*, region: str = "ap-northeast-2") -> dict[str, Any]:
+def run_vuln_stage() -> dict[str, Any]:
     vuln_stage = run_agent("vuln_collector_agent", {
         "action": "collect_vulnerabilities",
-        "region": region,
         "raw_output_path": str(VULN_RAW_OUTPUT_PATH),
         "risk_output_path": str(VULN_RISK_PAYLOAD_PATH),
         "operational_output_path": str(VULN_OPERATIONAL_PAYLOAD_PATH),

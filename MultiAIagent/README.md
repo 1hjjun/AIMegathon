@@ -33,6 +33,101 @@ vuln_collector -> asset_matching -> risk_evaluation -> patch_impact
 현재 오케스트라는 이 단계를 순서대로 이어주는 허브입니다.
 즉 지금 버전의 오케스트라는 "대화형 스웜 조율기"라기보다 "얇은 실행 파이프라인 + 테스트 실행기"에 가깝습니다.
 
+### 개념 파이프라인 예시
+
+사용자 호출을 아주 단순화해서 보면 아래처럼 이해할 수 있습니다.
+
+```text
+사용자 호출 예시: { "stack_name": "megathon" }
+  - mode 생략 시 기본값은 full
+  - region 생략 시 기본값은 ap-northeast-2
+
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│           orchestrator_agent            │
+│        파이프라인 총괄 / 라우팅          │
+└─────────────────────────────────────────┘
+        │
+        │ Step 0: orchestrator가 vuln 호출
+        ▼
+┌─────────────────────────────────────────┐
+│         vuln_collector_agent            │
+│                                         │
+│  반환:                                  │
+│  - raw_dataset                          │
+│  - risk_assessment_payload              │──→ risk 평가용
+│  - operational_impact_payload           │──→ patch 평가용
+│  - asset_matching_payload               │──→ 자산 수집용
+└─────────────────────────────────────────┘
+        │
+        │ Step 1: orchestrator가
+        │         asset_matching_payload를 받아
+        │         asset stage 입력으로 전달
+        ▼
+┌─────────────────────────────────────────┐
+│         infra_matching_agent            │
+│                                         │
+│  1. stack_name 기준으로 인프라 대상 탐색 │
+│  2. 관련 EC2 / 네트워크 / 보안 정보 수집 │
+│  3. SSM으로 소프트웨어/설정 정보 조회    │
+│                                         │
+│  반환: infra_context                    │
+└─────────────────────────────────────────┘
+        │
+        │ Step 2: orchestrator가
+        │         risk_assessment_payload + infra_context를 묶어
+        │         risk stage 입력으로 전달
+        ▼
+┌─────────────────────────────────────────┐
+│        risk_evaluation_agent            │
+│                                         │
+│  1. 취약점 payload와 자산 컨텍스트 결합  │
+│  2. 운영/노출/권한 조건 반영             │
+│  3. 위험도 산정                         │
+│                                         │
+│  반환: risk_result                      │
+└─────────────────────────────────────────┘
+        │
+        │ Step 3: orchestrator가
+        │         operational_payload + infra_context + risk_result를 묶어
+        │         patch stage 입력으로 전달
+        ▼
+┌─────────────────────────────────────────┐
+│         patch_impact_agent              │
+│                                         │
+│  1. patch pre 판단                      │
+│  2. 필요 시 asset follow-up 질문        │
+│  3. patch final 판단                    │
+│                                         │
+│  반환: patch_final_result               │
+└─────────────────────────────────────────┘
+```
+
+### 단계별 입력 / 산출물
+
+| 단계 | 호출 대상 | 오케스트라 입력 | 대표 산출물 | 다음 단계로 넘기는 값 |
+| --- | --- | --- | --- | --- |
+| vuln | `vuln_collector_agent` | 별도 단계 입력 없음 | `raw_result`, `risk_assessment_payload`, `operational_impact_payload`, `asset_matching_payload` | asset, risk, patch |
+| asset | `infra_matching_agent` | `stack_name`, `region`, `asset_matching_payload` | `infra_context` | risk, patch |
+| risk | `risk_evaluation_agent` | `region`, `infra_context`, `risk_assessment_payload` | `risk_result` | patch |
+| patch pre | `patch_impact_agent` | `region`, `infra_context`, `risk_result`, `operational_payload` | `prejudge_result`, `additional_request` | patch followup, patch final |
+| patch followup | `patch_impact_agent` | `region`, `infra_context`, `prejudge_result`, `requests` | `additional_asset_context` | patch final |
+| patch final | `patch_impact_agent` | `region`, `prejudge_result`, `additional_asset_context` | `patch_final_result` | 최종 응답 |
+
+표에서 자주 나오는 값은 아래처럼 이해하면 됩니다.
+
+- `raw_result`: vuln 단계의 원본 취약점 수집 결과입니다.
+- `risk_assessment_payload`: risk 단계가 바로 읽을 수 있게 정리한 취약점 payload입니다.
+- `operational_payload`: patch 단계가 운영 영향도를 판단할 때 쓰는 payload입니다.
+- `asset_matching_payload`: asset 단계가 어떤 자산을 볼지 판단할 때 쓰는 기준 payload입니다.
+- `infra_context`: 실제 인프라, 인스턴스, 소프트웨어, 네트워크 정보를 모아둔 컨텍스트입니다.
+- `risk_result`: risk 단계가 계산한 위험도 평가 결과입니다.
+- `prejudge_result`: patch 1차 판단 결과입니다.
+- `additional_request`: patch가 asset에 추가 확인이 필요하다고 판단한 질문 요청 묶음입니다.
+- `additional_asset_context`: follow-up 질문에 대한 asset 응답 묶음입니다.
+- `patch_final_result`: patch 단계의 최종 판단 결과입니다.
+
 ## 폴더 구조
 
 배포와 테스트 기준으로 자주 보는 폴더는 아래입니다.
@@ -123,33 +218,6 @@ MultiAIagent/
 - 응답을 patch final에 반영
 
 즉 지금 실제 "에이전트 간 대화"에 제일 가까운 구간은 `patch -> asset` 입니다.
-
-### 왜 `asset_matching_agent` 와 `risk_evaluation_agent` 소스 폴더는 안 보이나
-
-현재 이 `MultiAIagent` 폴더 안에서는 배포와 수정이 자주 일어나는 runtime 위주로 정리해 두었습니다.
-
-즉 지금 이 폴더에서 직접 관리하는 쪽은 주로:
-
-- `OchestratorAgent(AWS)`
-- `VulnCollectorAgent(AWS)`
-- `PatchImpactAgent(AWS)`
-
-입니다.
-
-반면 `asset_matching_agent`, `risk_evaluation_agent`는 현재 live runtime ARN을 호출하는 방식으로 연결되어 있고, 이 폴더 안에는 같은 형태의 `(AWS)` 배포 폴더가 따로 정리되어 있지 않습니다.
-
-## 현재 운영 기준에서 없는 것
-
-아래는 현재 기준으로 일부러 안 쓰는 방향입니다.
-
-- 오케스트라 내부 Strands/Swarm orchestration
-- patch ZIP runtime 운영
-- patch OpenAI key pass-through 방식
-
-현재 기준은:
-
-- 오케스트라 = 얇은 순차 파이프라인
-- patch = Bedrock 기반 container runtime
 
 ## 배포 방식 요약
 
@@ -258,8 +326,6 @@ AWS_DEFAULT_REGION=ap-northeast-2
 
 참고:
 
-- `OPENAI_API_KEY`는 현재 patch 기준 필수 아님
-- `OPENCVE_API_KEY`는 주로 vuln runtime 환경변수 쪽에서 필요
 - 로컬 실행기 자체는 AWS runtime 호출용 자격증명이 가장 중요함
 
 ### 실행 명령
@@ -371,9 +437,13 @@ OchestraResult/
 예를 들면:
 
 - `OchestraResult/orchestrator_agent/<run_tag>/response.json`
+  오케스트라 최종 응답입니다. 실행 모드, pipeline, 각 stage 결과가 한 번에 들어 있습니다.
 - `OchestraResult/patch_impact_agent/<run_tag>/patch_impact_prejudge_result.json`
+  patch 1차 판단 결과입니다. 어떤 CVE/자산 조합을 문제로 봤는지, 추가 질문이 필요한지 먼저 확인할 때 봅니다.
 - `OchestraResult/patch_impact_agent/<run_tag>/additional_asset_response.json`
+  patch가 asset에 추가로 물어본 follow-up 응답 묶음입니다. 실제 질문과 자산 응답이 어떻게 들어왔는지 확인할 때 봅니다.
 - `OchestraResult/patch_impact_agent/<run_tag>/patch_impact_final_result.json`
+  patch 최종 결과입니다. 최종 영향도 판단, 근거, 권장 조치 방향을 확인할 때 봅니다.
 
 ### 왜 중요하나
 

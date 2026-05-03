@@ -350,7 +350,7 @@ def run_vuln_only(payload: dict[str, Any]) -> dict[str, Any]:
     state = _seed_state(payload)
     config["injected_state"] = list(state.keys())
     if "vuln_stage" not in state:
-        state["vuln_stage"] = run_vuln_stage(region=config["region"])["vuln_stage"]
+        state["vuln_stage"] = run_vuln_stage()["vuln_stage"]
     return _build_pipeline_result(state, config, "vuln_only 모드 실행 완료")
 
 
@@ -414,7 +414,7 @@ def run_orchestrator(payload: dict[str, Any]) -> dict[str, Any]:
     stop_stage = config["stop_stage"]
 
     if _should_execute(stop_stage, "vuln") and "vuln_stage" not in state:
-        state["vuln_stage"] = run_vuln_stage(region=config["region"])["vuln_stage"]
+        state["vuln_stage"] = run_vuln_stage()["vuln_stage"]
     if stop_stage == "vuln":
         return _build_pipeline_result(state, config, "vuln 단계까지 실행 완료")
 
